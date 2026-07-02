@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Roast Ledger — Inventory</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --roast-950:#1C120C;
+    --roast-900:#2A1B12;
+    --roast-800:#3B2618;
+    --roast-700:#4E3320;
+    --cream:#F3E9DA;
+    --cream-dim:#C9B8A2;
+    --copper:#C58A4A;
+    --copper-bright:#E2A867;
+    --sage:#7A9471;
+    --rust:#B5523A;
+  }
+  *{ -webkit-tap-highlight-color: transparent; }
+  body{
+    background: var(--roast-950);
+    font-family:'Inter',sans-serif;
+    color: var(--cream);
+  }
+  .font-display{ font-family:'Fraunces',serif; }
+  .font-mono{ font-family:'IBM Plex Mono',monospace; }
+
+  .grain{
+    background-image: radial-gradient(circle at 1px 1px, rgba(243,233,218,0.035) 1px, transparent 0);
+    background-size: 3px 3px;
+  }
+
+  .card{
+    background: var(--roast-900);
+    border: 1px solid rgba(243,233,218,0.08);
+  }
+
+  .btn-adjust{
+    -webkit-user-select:none; user-select:none;
+    transition: transform .08s ease, background-color .12s ease;
+  }
+  .btn-adjust:active{ transform: scale(0.90); }
+
+  .btn-plus{ background: var(--sage); color: var(--roast-950); }
+  .btn-minus{ background: var(--rust); color: var(--cream); }
+
+  .qty-pop{ animation: pop .22s ease; }
+  @keyframes pop{
+    0%{ transform: scale(1); }
+    40%{ transform: scale(1.18); }
+    100%{ transform: scale(1); }
+  }
+
+  .fade-in{ animation: fadeIn .25s ease both; }
+  @keyframes fadeIn{ from{ opacity:0; transform: translateY(6px);} to{ opacity:1; transform: translateY(0);} }
+
+  ::selection{ background: var(--copper); color: var(--roast-950); }
+
+  input:focus-visible, button:focus-visible{
+    outline: 2px solid var(--copper-bright);
+    outline-offset: 2px;
+  }
+
+  .divider-line{
+    height:1px;
+    background: linear-gradient(90deg, transparent, rgba(243,233,218,0.15), transparent);
+  }
+
+  .low-stock{ box-shadow: inset 3px 0 0 0 var(--rust); }
+</style>
+</head>
+<body class="grain min-h-screen">
+
+<!-- ============ GATEKEEPER LOGIN ============ -->
+<div id="gate" class="min-h-screen flex items-center justify-center px-6">
+  <div class="w-full max-w-sm fade-in">
+    <div class="text-center mb-8">
+      <div class="font-mono text-xs tracking-[0.3em] text-copper uppercase mb-2" style="color:var(--copper)">Roast Ledger</div>
+      <h1 class="font-display text-4xl font-bold" style="color:var(--cream)">Back of house</h1>
+      <p class="text-sm mt-2" style="color:var(--cream-dim)">Enter the shop password to open the ledger.</p>
+    </div>
+    <form id="gate-form" class="card rounded-2xl p-6 space-y-4">
+      <div>
+        <label for="gate-pass" class="block text-xs font-mono uppercase tracking-wider mb-2" style="color:var(--cream-dim)">Password</label>
+        <input id="gate-pass" type="password" autocomplete="current-password" placeholder="••••••••"
+          class="w-full rounded-xl px-4 py-4 text-lg font-mono bg-transparent border-2 outline-none"
+          style="border-color:var(--roast-700); color:var(--cream); background:var(--roast-950);">
+      </div>
+      <p id="gate-error" class="text-sm hidden" style="color:var(--rust)">Wrong password. Try again.</p>
+      <button type="submit"
+        class="w-full rounded-xl py-4 text-lg font-semibold tracking-wide transition active:scale-95"
+        style="background:var(--copper); color:var(--roast-950);">
+        Unlock
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboard" class="hidden min-h-screen pb-32">
+
+  <!-- Header -->
+  <header class="px-5 pt-6 pb-4 sticky top-0 z-20" style="background:var(--roast-950);">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="font-mono text-[10px] tracking-[0.3em] uppercase" style="color:var(--copper)">Roast Ledger</div>
+        <h1 class="font-display text-2xl font-bold" style="color:var(--cream)">Inventory</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="open-admin" aria-label="Open admin settings"
+          class="w-11 h-11 rounded-full flex items-center justify-center card"
+          style="color:var(--cream-dim)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+        <button id="lock-btn" aria-label="Lock ledger"
+          class="w-11 h-11 rounded-full flex items-center justify-center card" style="color:var(--cream-dim)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Search -->
+  <div class="px-5 mb-3">
+    <input id="search" type="text" placeholder="Search items…"
+      class="w-full rounded-xl px-4 py-3 text-sm font-mono bg-transparent border outline-none"
+      style="border-color:var(--roast-700); color:var(--cream);">
+  </div>
+
+  <!-- Item List -->
+  <main id="item-list" class="px-5 space-y-3"></main>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="hidden text-center px-8 py-16">
+    <div class="font-display text-2xl font-bold mb-2" style="color:var(--cream)">The shelf is bare</div>
+    <p class="text-sm mb-6" style="color:var(--cream-dim)">Add your first item from the admin panel to start tracking stock.</p>
+    <button onclick="openAdmin()" class="rounded-xl px-6 py-3 font-semibold" style="background:var(--copper); color:var(--roast-950);">Open admin</button>
+  </div>
+
+  <!-- Send Report -->
+  <div class="fixed bottom-0 left-0 right-0 px-5 pb-6 pt-4" style="background:linear-gradient(to top, var(--roast-950) 60%, transparent);">
+    <button id="send-report"
+      class="w-full rounded-2xl py-4 font-display font-bold text-lg tracking-wide shadow-lg transition active:scale-[0.98]"
+      style="background:var(--copper); color:var(--roast-950);">
+      Send Inventory Report
+    </button>
+    <p id="report-status" class="text-center text-xs font-mono mt-2 min-h-[1rem]" style="color:var(--cream-dim)"></p>
+  </div>
+</div>
+
+<!-- ============ ADMIN DRAWER ============ -->
+<div id="admin-overlay" class="hidden fixed inset-0 z-30 flex items-end sm:items-center sm:justify-center">
+  <div id="admin-backdrop" class="absolute inset-0" style="background:rgba(0,0,0,0.6);"></div>
+  <div class="relative w-full sm:max-w-md sm:rounded-2xl rounded-t-3xl card p-6 max-h-[88vh] overflow-y-auto fade-in">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-display text-2xl font-bold" style="color:var(--cream)">Admin</h2>
+      <button id="close-admin" aria-label="Close admin" class="w-9 h-9 rounded-full flex items-center justify-center" style="color:var(--cream-dim); background:var(--roast-800);">✕</button>
+    </div>
+
+    <!-- Add item form -->
+    <div class="mb-6">
+      <div class="font-mono text-[10px] uppercase tracking-[0.25em] mb-3" style="color:var(--copper)">Add new item</div>
+      <form id="add-item-form" class="space-y-3">
+        <input id="new-item-name" type="text" placeholder="Item name" required
+          class="w-full rounded-xl px-4 py-3 text-base bg-transparent border outline-none"
+          style="border-color:var(--roast-700); color:var(--cream);">
+        <input id="new-item-qty" type="number" min="0" placeholder="Initial quantity" required
+          class="w-full rounded-xl px-4 py-3 text-base font-mono bg-transparent border outline-none"
+          style="border-color:var(--roast-700); color:var(--cream);">
+        <button type="submit" class="w-full rounded-xl py-3 font-semibold" style="background:var(--sage); color:var(--roast-950);">Add item</button>
+      </form>
+    </div>
+
+    <div class="divider-line mb-6"></div>
+
+    <!-- Webhook config -->
+    <div class="mb-6">
+      <div class="font-mono text-[10px] uppercase tracking-[0.25em] mb-3" style="color:var(--copper)">Webhook URL</div>
+      <input id="webhook-url" type="url" placeholder="https://your-n8n-instance.com/webhook/..."
+        class="w-full rounded-xl px-4 py-3 text-sm font-mono bg-transparent border outline-none"
+        style="border-color:var(--roast-700); color:var(--cream);">
+      <p class="text-xs mt-2" style="color:var(--cream-dim)">Saved locally in this browser. Used by the Send Report button.</p>
+    </div>
+
+    <div class="divider-line mb-6"></div>
+
+    <!-- Manage items -->
+    <div>
+      <div class="font-mono text-[10px] uppercase tracking-[0.25em] mb-3" style="color:var(--copper)">Manage items</div>
+      <div id="admin-item-list" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full text-sm font-mono shadow-lg"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const PASSWORD = "Coffee2026";
+  const LS_ITEMS = "roastledger_items";
+  const LS_AUTH = "roastledger_auth";
+  const LS_WEBHOOK = "roastledger_webhook";
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- Seed / Load ----------
+  function loadItems(){
+    try{
+      const raw = localStorage.getItem(LS_ITEMS);
+      if(raw) return JSON.parse(raw);
+    }catch(e){ console.error("Failed to parse items", e); }
+    const seed = [
+      { id: cryptoId(), name: "Espresso Beans (1kg)", qty: 12 },
+      { id: cryptoId(), name: "Oat Milk (1L)", qty: 8 },
+      { id: cryptoId(), name: "Paper Cups (12oz)", qty: 240 },
+      { id: cryptoId(), name: "Cinnamon Syrup", qty: 3 },
+    ];
+    saveItems(seed);
+    return seed;
+  }
+  function saveItems(items){
+    localStorage.setItem(LS_ITEMS, JSON.stringify(items));
+  }
+  function cryptoId(){
+    return "id_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  }
+
+  let items = loadItems();
+  let searchTerm = "";
+
+  // ---------- Gatekeeper ----------
+  const gate = $("gate");
+  const dashboard = $("dashboard");
+
+  function isUnlocked(){
+    return sessionStorage.getItem(LS_AUTH) === "true";
+  }
+  function unlock(){
+    sessionStorage.setItem(LS_AUTH, "true");
+    gate.classList.add("hidden");
+    dashboard.classList.remove("hidden");
+    render();
+  }
+  function lock(){
+    sessionStorage.removeItem(LS_AUTH);
+    dashboard.classList.add("hidden");
+    gate.classList.remove("hidden");
+    $("gate-pass").value = "";
+    $("gate-error").classList.add("hidden");
+  }
+
+  $("gate-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const val = $("gate-pass").value;
+    if(val === PASSWORD){
+      unlock();
+    } else {
+      $("gate-error").classList.remove("hidden");
+      $("gate-pass").focus();
+    }
+  });
+  $("lock-btn").addEventListener("click", lock);
+
+  if(isUnlocked()) unlock();
+
+  // ---------- Render ----------
+  function render(){
+    const list = $("item-list");
+    const empty = $("empty-state");
+    const filtered = items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    if(items.length === 0){
+      list.innerHTML = "";
+      empty.classList.remove("hidden");
+      renderAdminList();
+      return;
+    }
+    empty.classList.add("hidden");
+
+    if(filtered.length === 0){
+      list.innerHTML = `<p class="text-center text-sm py-10" style="color:var(--cream-dim)">No items match "${escapeHtml(searchTerm)}".</p>`;
+      renderAdminList();
+      return;
+    }
+
+    list.innerHTML = filtered.map(item => `
+      <div class="card rounded-2xl px-4 py-3 flex items-center justify-between gap-3 ${item.qty <= 3 ? 'low-stock' : ''}" data-id="${item.id}">
+        <div class="min-w-0 flex-1">
+          <div class="font-semibold text-base truncate" style="color:var(--cream)">${escapeHtml(item.name)}</div>
+          ${item.qty <= 3 ? `<div class="font-mono text-[10px] uppercase tracking-wider mt-0.5" style="color:var(--rust)">Low stock</div>` : ""}
+        </div>
+        <button class="btn-adjust btn-minus w-11 h-11 rounded-full text-2xl font-bold flex items-center justify-center shrink-0" data-action="dec" data-id="${item.id}" aria-label="Decrease ${escapeHtml(item.name)}">−</button>
+        <div class="font-mono font-bold text-3xl w-14 text-center shrink-0 qty-num" style="color:var(--cream)" data-qty-for="${item.id}">${item.qty}</div>
+        <button class="btn-adjust btn-plus w-11 h-11 rounded-full text-2xl font-bold flex items-center justify-center shrink-0" data-action="inc" data-id="${item.id}" aria-label="Increase ${escapeHtml(item.name)}">+</button>
+      </div>
+    `).join("");
+
+    renderAdminList();
+  }
+
+  function renderAdminList(){
+    const container = $("admin-item-list");
+    if(items.length === 0){
+      container.innerHTML = `<p class="text-sm" style="color:var(--cream-dim)">No items yet.</p>`;
+      return;
+    }
+    container.innerHTML = items.map(item => `
+      <div class="flex items-center justify-between gap-2 rounded-xl px-3 py-2" style="background:var(--roast-800);">
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-medium truncate" style="color:var(--cream)">${escapeHtml(item.name)}</div>
+          <div class="text-xs font-mono" style="color:var(--cream-dim)">Qty: ${item.qty}</div>
+        </div>
+        <button data-delete="${item.id}" class="text-xs font-mono px-3 py-2 rounded-lg shrink-0" style="background:var(--rust); color:var(--cream);">Delete</button>
+      </div>
+    `).join("");
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ---------- Quantity adjust ----------
+  $("item-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-action]");
+    if(!btn) return;
+    const id = btn.dataset.id;
+    const item = items.find(i => i.id === id);
+    if(!item) return;
+    if(btn.dataset.action === "inc") item.qty += 1;
+    if(btn.dataset.action === "dec") item.qty = Math.max(0, item.qty - 1);
+    saveItems(items);
+    render();
+    const numEl = document.querySelector(`[data-qty-for="${id}"]`);
+    if(numEl){
+      numEl.classList.remove("qty-pop");
+      void numEl.offsetWidth;
+      numEl.classList.add("qty-pop");
+    }
+  });
+
+  // ---------- Search ----------
+  $("search").addEventListener("input", (e) => {
+    searchTerm = e.target.value;
+    render();
+  });
+
+  // ---------- Admin drawer ----------
+  const adminOverlay = $("admin-overlay");
+  function openAdmin(){
+    adminOverlay.classList.remove("hidden");
+    renderAdminList();
+    $("webhook-url").value = localStorage.getItem(LS_WEBHOOK) || "";
+  }
+  function closeAdmin(){ adminOverlay.classList.add("hidden"); }
+  window.openAdmin = openAdmin;
+  $("open-admin").addEventListener("click", openAdmin);
+  $("close-admin").addEventListener("click", closeAdmin);
+  $("admin-backdrop").addEventListener("click", closeAdmin);
+
+  $("add-item-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const nameInput = $("new-item-name");
+    const qtyInput = $("new-item-qty");
+    const name = nameInput.value.trim();
+    const qty = parseInt(qtyInput.value, 10);
+    if(!name || isNaN(qty) || qty < 0) return;
+    items.push({ id: cryptoId(), name, qty });
+    saveItems(items);
+    nameInput.value = "";
+    qtyInput.value = "";
+    render();
+    showToast("Item added");
+    nameInput.focus();
+  });
+
+  $("admin-item-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-delete]");
+    if(!btn) return;
+    const id = btn.dataset.delete;
+    const item = items.find(i => i.id === id);
+    if(!item) return;
+    if(confirm(`Delete "${item.name}" from inventory?`)){
+      items = items.filter(i => i.id !== id);
+      saveItems(items);
+      render();
+      showToast("Item deleted");
+    }
+  });
+
+  $("webhook-url").addEventListener("change", (e) => {
+    localStorage.setItem(LS_WEBHOOK, e.target.value.trim());
+    showToast("Webhook saved");
+  });
+
+  // ---------- Send report ----------
+  $("send-report").addEventListener("click", async () => {
+    const url = (localStorage.getItem(LS_WEBHOOK) || "").trim();
+    const status = $("report-status");
+    if(!url){
+      status.textContent = "Set a webhook URL in Admin first.";
+      status.style.color = "var(--rust)";
+      openAdmin();
+      $("webhook-url").focus();
+      return;
+    }
+    const payload = {
+      sent_at: new Date().toISOString(),
+      item_count: items.length,
+      items: items.map(i => ({ name: i.name, quantity: i.qty }))
+    };
+    status.textContent = "Sending…";
+    status.style.color = "var(--cream-dim)";
+    try{
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if(res.ok){
+        status.textContent = `Report sent — ${payload.item_count} items`;
+        status.style.color = "var(--sage)";
+        showToast("Report sent");
+      } else {
+        status.textContent = `Webhook responded with status ${res.status}`;
+        status.style.color = "var(--rust)";
+      }
+    }catch(err){
+      status.textContent = "Could not reach webhook. Check the URL and try again.";
+      status.style.color = "var(--rust)";
+    }
+  });
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function showToast(msg){
+    const t = $("toast");
+    t.textContent = msg;
+    t.style.background = "var(--copper)";
+    t.style.color = "var(--roast-950)";
+    t.classList.remove("hidden");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.add("hidden"), 1800);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
